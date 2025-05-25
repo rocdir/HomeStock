@@ -195,19 +195,22 @@
         import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase configuration and app ID (Provided by Canvas environment)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-inventory-app'; // Fallback app ID
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-inventory-app'; 
         const rawFirebaseConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
         let firebaseConfig = {};
+        
         try {
             firebaseConfig = JSON.parse(rawFirebaseConfig);
-            if (Object.keys(firebaseConfig).length === 0) {
-                console.warn("Firebase config is empty. Using placeholder. App might not work correctly.");
-                // Provide a placeholder if config is empty, though this won't connect to a real Firebase project
-                firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
+            if (Object.keys(firebaseConfig).length === 0 && rawFirebaseConfig === '{}') {
+                console.warn("Firebase config is an empty object string ('{}'). Using placeholder. App might not work correctly.");
+                firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG_EMPTY_OBJ", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
+            } else if (Object.keys(firebaseConfig).length === 0) { 
+                 console.warn("Firebase config was effectively empty (e.g., from undefined __firebase_config). Using placeholder.");
+                 firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG_UNDEFINED", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
             }
-        } catch (e) {
-            console.error("Error parsing Firebase config:", e);
-            firebaseConfig = { apiKey: "AIzaSyD_ERROR_CONFIG", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
+        } catch (e) { 
+            console.error("Error parsing Firebase config JSON:", e, "Raw config was:", rawFirebaseConfig);
+            firebaseConfig = { apiKey: "AIzaSyD_ERROR_CONFIG_PARSE", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
         }
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -240,7 +243,22 @@
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
-        let currentEditingItem = null; // To store the item being edited/deleted
+        let currentEditingItem = null; 
+
+        // --- Utility Functions ---
+        function generateFallbackId(prefix = "id") {
+            return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        }
+
+        function getUserIdFallback(prefix = "anon") {
+            try {
+                return typeof crypto !== 'undefined' && crypto.randomUUID ? `${prefix}-${crypto.randomUUID()}` : generateFallbackId(prefix);
+            } catch (e) {
+                console.warn("crypto.randomUUID not available, using simpler fallback for ID generation.");
+                return generateFallbackId(prefix);
+            }
+        }
+
 
         // --- Firebase Initialization and Authentication ---
         function initializeFirebase() {
@@ -248,58 +266,88 @@
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                // For debugging Firestore issues if any
-                // import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-                // setLogLevel('debug');
-
-
+                
                 onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        currentUserId = user.uid;
-                        userIdDisplay.textContent = currentUserId;
-                    } else {
-                        try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
+                    try {
+                        if (user) {
+                            currentUserId = user.uid;
+                            userIdDisplay.textContent = currentUserId;
+                        } else {
+                            try {
+                                if (initialAuthToken) {
+                                    console.log("Attempting sign in with custom token...");
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                    // onAuthStateChanged will be called again with the user
+                                } else {
+                                    console.log("Attempting anonymous sign in...");
+                                    await signInAnonymously(auth);
+                                    // onAuthStateChanged will be called again with the user
+                                }
+                            } catch (signInError) {
+                                console.error("Error during sign-in attempt:", signInError);
+                                userIdDisplay.textContent = "Error de autenticación";
+                                currentUserId = getUserIdFallback("auth-error");
+                                userIdDisplay.textContent = `${currentUserId} (Error de inicio sesión)`;
                             }
-                            // This block will be re-entered after sign-in, setting currentUserId
-                        } catch (error) {
-                            console.error("Error signing in:", error);
-                            userIdDisplay.textContent = "Error de autenticación";
-                            currentUserId = `anon-${crypto.randomUUID()}`; // Fallback anonymous ID
-                            userIdDisplay.textContent = currentUserId + " (Anónimo Fallback)";
                         }
-                    }
-                    
-                    if (auth.currentUser && !currentUserId) { // Ensure currentUserId is set if auth.currentUser exists
-                        currentUserId = auth.currentUser.uid;
-                        userIdDisplay.textContent = currentUserId;
-                    }
+                        
+                        // Ensure currentUserId is set if auth.currentUser exists, even after a failed specific sign-in
+                        if (!currentUserId && auth.currentUser) {
+                            currentUserId = auth.currentUser.uid;
+                            userIdDisplay.textContent = currentUserId + " (Recuperado)";
+                        }
+                        
+                        // If still no user ID after all attempts
+                        if (!currentUserId) {
+                            console.warn("No user ID could be established after auth attempts. Using a final fallback ID.");
+                            currentUserId = getUserIdFallback("final-fallback");
+                            userIdDisplay.textContent = `${currentUserId} (Fallback final)`;
+                        }
 
-                    isAuthReady = true;
-                    hideLoading();
-                    if (currentUserId) {
-                        setupRealtimeListeners();
-                    } else {
-                        console.warn("User ID not available after auth state change. Realtime listeners not set up.");
+                    } catch (errorInCallback) {
+                        console.error("Critical error within onAuthStateChanged callback logic:", errorInCallback);
+                        userIdDisplay.textContent = "Error crítico de autenticación";
+                        if (!currentUserId) {
+                           currentUserId = getUserIdFallback("critical-error");
+                           userIdDisplay.textContent = `${currentUserId} (Error crítico)`;
+                        }
+                    } finally {
+                        isAuthReady = true;
+                        hideLoading(); 
+                        if (currentUserId) {
+                            console.log("User authenticated/identified:", currentUserId, "Setting up listeners.");
+                            setupRealtimeListeners();
+                        } else {
+                            // This case should ideally be covered by fallbacks above
+                            console.error("CRITICAL: User ID is STILL null after auth state change and fallbacks. Listeners not set up.");
+                            lastUpdatedMessage.textContent = "Error: No se pudo identificar al usuario.";
+                        }
                     }
                 });
             } catch (error) {
-                console.error("Error initializing Firebase:", error);
-                userIdDisplay.textContent = "Error de inicialización";
-                hideLoading();
+                console.error("Error initializing Firebase (outer catch):", error);
+                userIdDisplay.textContent = "Error de inicialización de Firebase";
+                lastUpdatedMessage.textContent = "No se pudo conectar a la base de datos.";
+                hideLoading(); // Ensure loading is hidden if init itself fails
             }
         }
 
         // --- Loading Indicator ---
-        function showLoading() { loadingIndicator.classList.remove('hidden'); }
-        function hideLoading() { loadingIndicator.classList.add('hidden'); }
+        function showLoading() { 
+            if(loadingIndicator) loadingIndicator.classList.remove('hidden'); 
+            else console.error("loadingIndicator element not found");
+        }
+        function hideLoading() { 
+            if(loadingIndicator) loadingIndicator.classList.add('hidden'); 
+            else console.error("loadingIndicator element not found during hide");
+        }
 
         // --- Update Last Modified Info ---
         async function updateLastModified() {
-            if (!isAuthReady || !currentUserId || !db) return;
+            if (!isAuthReady || !currentUserId || !db) {
+                console.warn("Cannot update last modified: Auth not ready, no user ID, or DB not available.");
+                return;
+            }
             try {
                 const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
                 await setDoc(metadataDocRef, {
@@ -320,13 +368,11 @@
             card.setAttribute('data-item-id', item.id);
             card.setAttribute('data-column-id', item.column);
 
-            // Determine card border color based on column
             let borderColorClass = 'border-gray-200';
             if (item.column === 'inStock') borderColorClass = 'border-green-300';
             else if (item.column === 'runningLow') borderColorClass = 'border-yellow-300';
             else if (item.column === 'outOfStockToBuy') borderColorClass = 'border-red-300';
             card.classList.replace('border-gray-200', borderColorClass);
-
 
             card.innerHTML = `
                 <div class="flex justify-between items-start">
@@ -347,11 +393,11 @@
             card.addEventListener('dragend', handleDragEnd);
 
             card.querySelector('.edit-btn').addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent card drag
+                e.stopPropagation(); 
                 openEditModal(item);
             });
             card.querySelector('.delete-btn').addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent card drag
+                e.stopPropagation(); 
                 openDeleteConfirmModal(item);
             });
             return card;
@@ -365,11 +411,13 @@
                 if (columnElement) {
                     columnElement.appendChild(createItemCard(item));
                 } else {
-                    console.warn(`Column ${item.column} not found for item ${item.name}`);
-                     // If item has an old/invalid column, try to put it in 'outOfStockToBuy'
+                    console.warn(`Column ${item.column} not found for item ${item.name}. Moving to 'Sin Stock (a comprar)'.`);
                     const fallbackColumn = document.querySelector(`.kanban-column > div[data-column-id="outOfStockToBuy"]`);
                     if (fallbackColumn) {
-                        fallbackColumn.appendChild(createItemCard(item));
+                        const correctedItem = {...item, column: 'outOfStockToBuy'};
+                        fallbackColumn.appendChild(createItemCard(correctedItem));
+                    } else {
+                        console.error("Fallback column 'outOfStockToBuy' also not found. Cannot render item:", item.name);
                     }
                 }
             });
@@ -378,13 +426,15 @@
         // --- Real-time Listeners ---
         function setupRealtimeListeners() {
             if (!isAuthReady || !currentUserId || !db) {
-                console.log("Auth not ready or DB not available for listener setup.");
+                console.error("Cannot setup listeners: Auth not ready, no user ID, or DB not available.", {isAuthReady, currentUserId, dbExists: !!db});
+                lastUpdatedMessage.textContent = "Error de conexión para actualizaciones en tiempo real.";
                 return;
             }
+            console.log("Setting up Firestore listeners...");
 
-            // Listener for inventory items
             const itemsCollectionRef = collection(db, `artifacts/${appId}/public/data/inventoryItems`);
             onSnapshot(itemsCollectionRef, (snapshot) => {
+                console.log(`Received ${snapshot.docs.length} items from Firestore.`);
                 const items = [];
                 snapshot.forEach(doc => {
                     items.push({ id: doc.id, ...doc.data() });
@@ -392,15 +442,14 @@
                 renderItems(items);
             }, (error) => {
                 console.error("Error fetching real-time item updates:", error);
-                lastUpdatedMessage.textContent = "Error al cargar datos.";
+                lastUpdatedMessage.textContent = "Error al cargar datos de inventario.";
             });
 
-            // Listener for last update metadata
             const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
             onSnapshot(metadataDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    if (data.lastUpdatedAt && data.lastUpdatedAt.toDate) { // Check if it's a Firestore Timestamp
+                    if (data.lastUpdatedAt && data.lastUpdatedAt.toDate) { 
                         const date = data.lastUpdatedAt.toDate();
                         const updatedBy = data.lastUpdatedBy ? `por ${data.lastUpdatedBy.substring(0,8)}...` : 'por alguien';
                         lastUpdatedMessage.textContent = `Datos actualizados ${updatedBy} el ${date.toLocaleDateString()} a las ${date.toLocaleTimeString()}.`;
@@ -421,7 +470,7 @@
             const name = itemNameInput.value.trim();
             const quantity = parseFloat(itemQuantityInput.value);
             const unit = itemUnitInput.value;
-            const column = itemColumnInput.value; // Get selected column
+            const column = itemColumnInput.value; 
 
             if (!name) {
                 addError.textContent = "El nombre del artículo no puede estar vacío.";
@@ -449,15 +498,15 @@
                     name: name,
                     quantity: quantity,
                     unit: unit,
-                    column: column, // Use selected column
+                    column: column, 
                     createdAt: serverTimestamp(),
                     createdBy: currentUserId
                 });
-                await updateLastModified(); // Update metadata
+                await updateLastModified(); 
                 itemNameInput.value = '';
                 itemQuantityInput.value = '1';
                 itemUnitInput.value = 'Uds.';
-                itemColumnInput.value = 'outOfStockToBuy'; // Reset to default
+                itemColumnInput.value = 'outOfStockToBuy'; 
                 hideLoading();
             } catch (e) {
                 console.error("Error adding document: ", e);
@@ -484,19 +533,17 @@
                 draggedItem.classList.remove('dragging');
             }
             draggedItem = null;
-            // Remove drag-over from all columns
             document.querySelectorAll('.kanban-column > div[data-column-id]').forEach(col => col.classList.remove('drag-over'));
         }
 
         document.querySelectorAll('.kanban-column > div[data-column-id]').forEach(columnContainer => {
             columnContainer.addEventListener('dragover', e => {
                 e.preventDefault();
-                if (columnContainer !== draggedItem?.parentNode) { // Don't highlight if over original column's items
+                if (columnContainer !== draggedItem?.parentNode) { 
                     columnContainer.classList.add('drag-over');
                 }
             });
             columnContainer.addEventListener('dragleave', e => {
-                 // Check if the mouse is leaving to an element not within the column container
                 if (!columnContainer.contains(e.relatedTarget)) {
                     columnContainer.classList.remove('drag-over');
                 }
@@ -522,15 +569,14 @@
                             updatedAt: serverTimestamp(),
                             updatedBy: currentUserId
                         });
-                        await updateLastModified(); // Update metadata
-                        // The onSnapshot listener will handle re-rendering
+                        await updateLastModified(); 
                         hideLoading();
                     } catch (error) {
                         console.error("Error updating item column:", error);
                         hideLoading();
                     }
                 }
-                draggedItem = null; // Clear dragged item after drop
+                draggedItem = null; 
             });
         });
 
@@ -539,7 +585,7 @@
             currentEditingItem = item;
             editItemNameInput.value = item.name;
             editItemQuantityInput.value = item.quantity;
-            editItemUnitInput.value = item.unit || 'Uds.'; // Default to Uds if unit is not set
+            editItemUnitInput.value = item.unit || 'Uds.'; 
             editModal.classList.remove('hidden');
         }
 
@@ -555,15 +601,14 @@
                 const newUnit = editItemUnitInput.value;
 
                 if (!newName) {
-                    console.log("El nombre no puede estar vacío."); // Replaced alert
-                    // You might want to show this error in the modal UI
+                    // Consider showing this error in the modal UI instead of just console.log
+                    console.log("El nombre no puede estar vacío."); 
                     return;
                 }
                  if (isNaN(newQuantity) || newQuantity < 0) {
-                    console.log("La cantidad debe ser un número válido y no negativo."); // Replaced alert
+                    console.log("La cantidad debe ser un número válido y no negativo."); 
                     return;
                 }
-
 
                 if (!isAuthReady || !currentUserId || !db) {
                     console.error("Auth/DB not ready. Cannot save changes.");
@@ -580,12 +625,11 @@
                         updatedAt: serverTimestamp(),
                         updatedBy: currentUserId
                     });
-                    await updateLastModified(); // Update metadata
+                    await updateLastModified(); 
                     closeEditModal();
                     hideLoading();
                 } catch (error) {
                     console.error("Error updating item:", error);
-                    // Show error in modal UI if possible
                     hideLoading();
                 }
             }
@@ -612,7 +656,7 @@
                     showLoading();
                     const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, currentEditingItem.id);
                     await deleteDoc(itemDocRef);
-                    await updateLastModified(); // Update metadata
+                    await updateLastModified(); 
                     closeDeleteConfirmModal();
                     hideLoading();
                 } catch (error) {
@@ -625,18 +669,36 @@
 
         // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => {
-            showLoading(); // Show loading initially
-            if (Object.keys(firebaseConfig).length > 2) { // Basic check if config might be valid
+            showLoading(); 
+            let proceedWithFirebase = true;
+
+            // Stricter check for firebaseConfig validity
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                proceedWithFirebase = false;
+                console.error("Firebase configuration is empty or not an object.");
+            } else if (firebaseConfig.apiKey && (firebaseConfig.apiKey.includes("ERROR_CONFIG") || firebaseConfig.apiKey.includes("DEMO_CONFIG"))) {
+                proceedWithFirebase = false;
+                console.error("Firebase configuration is identified as a placeholder/error config:", firebaseConfig.apiKey);
+            } else if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+                proceedWithFirebase = false; 
+                console.error("Essential Firebase configuration fields (apiKey, authDomain, projectId) are missing.");
+            }
+            
+            if (proceedWithFirebase) {
+                 console.log("Firebase config seems valid, initializing Firebase...");
                  initializeFirebase();
             } else {
-                console.error("Firebase configuration is missing or invalid. App will not connect to Firebase.");
+                console.error("Will not initialize Firebase due to invalid or placeholder configuration.");
                 userIdDisplay.textContent = "Configuración Inválida";
-                lastUpdatedMessage.textContent = "Error de configuración de Firebase.";
+                lastUpdatedMessage.textContent = "Error de configuración de Firebase. La app no funcionará.";
                 hideLoading();
-                 // Optionally, you could disable parts of the UI that depend on Firebase here.
-                addItemBtn.disabled = true;
-                addItemBtn.title = "Firebase no configurado";
-                addItemBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                if(addItemBtn) {
+                    addItemBtn.disabled = true;
+                    addItemBtn.title = "Firebase no configurado";
+                    addItemBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    console.error("addItemBtn not found to disable.");
+                }
             }
         });
     </script>
