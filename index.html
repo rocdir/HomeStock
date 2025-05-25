@@ -17,7 +17,7 @@
         }
         /* Custom scrollbar for columns */
         .kanban-column {
-            max-height: calc(100vh - 180px); /* Adjust based on header/footer height */
+            max-height: calc(100vh - 220px); /* Adjust based on header/footer height */
             overflow-y: auto;
             scrollbar-width: thin; /* Firefox */
             scrollbar-color: #9CA3AF #F3F4F6; /* thumb and track color */
@@ -33,6 +33,17 @@
             background-color: #9CA3AF; /* Gray-400 */
             border-radius: 10px;
             border: 2px solid #F3F4F6;
+        }
+        /* Ensure select dropdowns are visible */
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
         }
     </style>
 </head>
@@ -57,16 +68,41 @@
         <main class="container mx-auto p-4 flex-grow">
             <section class="bg-white p-6 rounded-lg shadow-md mb-6">
                 <h2 class="text-2xl font-semibold mb-4 text-gray-700">Añadir Nuevo Artículo</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
                         <label for="itemName" class="block text-sm font-medium text-gray-600 mb-1">Nombre del Artículo</label>
                         <input type="text" id="itemName" placeholder="Ej: Arroz"
                                class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
                     </div>
-                    <div>
-                        <label for="itemQuantity" class="block text-sm font-medium text-gray-600 mb-1">Cantidad</label>
-                        <input type="number" id="itemQuantity" value="1" min="1"
-                               class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                    <div class="flex gap-2">
+                        <div class="flex-grow">
+                            <label for="itemQuantity" class="block text-sm font-medium text-gray-600 mb-1">Cantidad</label>
+                            <input type="number" id="itemQuantity" value="1" min="0" step="any"
+                                   class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        </div>
+                        <div>
+                            <label for="itemUnit" class="block text-sm font-medium text-gray-600 mb-1">Unidad</label>
+                            <select id="itemUnit" class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm appearance-none">
+                                <option value="Uds.">Uds.</option>
+                                <option value="kg">kg</option>
+                                <option value="g">g</option>
+                                <option value="L">L</option>
+                                <option value="ml">ml</option>
+                                <option value="Paquetes">Paquetes</option>
+                                <option value="Latas">Latas</option>
+                                <option value="Botellas">Botellas</option>
+                                <option value="Rollos">Rollos</option>
+                                <option value="Cajas">Cajas</option>
+                            </select>
+                        </div>
+                    </div>
+                     <div>
+                        <label for="itemColumn" class="block text-sm font-medium text-gray-600 mb-1">Categoría Inicial</label>
+                        <select id="itemColumn" class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm appearance-none">
+                            <option value="inStock">En Stock</option>
+                            <option value="runningLow">Por agotarse</option>
+                            <option value="outOfStockToBuy" selected>Sin Stock (a comprar)</option>
+                        </select>
                     </div>
                     <button id="addItemBtn"
                             class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 shadow-md">
@@ -76,40 +112,64 @@
                 <p id="addError" class="text-red-500 text-sm mt-2 hidden">El nombre del artículo no puede estar vacío.</p>
             </section>
 
-            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div id="column-pending" class="kanban-column bg-gray-50 p-4 rounded-lg shadow-md border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2 border-gray-300">Pendiente</h3>
-                    <div class="space-y-4 min-h-[100px]" data-column-id="pending">
-                        </div>
-                </div>
-
-                <div id="column-purchased" class="kanban-column bg-gray-50 p-4 rounded-lg shadow-md border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2 border-gray-300">Comprado</h3>
-                    <div class="space-y-4 min-h-[100px]" data-column-id="purchased">
-                        </div>
-                </div>
-
-                <div id="column-inStock" class="kanban-column bg-gray-50 p-4 rounded-lg shadow-md border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2 border-gray-300">En Stock</h3>
+            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div id="column-inStock" class="kanban-column bg-green-50 p-4 rounded-lg shadow-md border border-green-200">
+                    <h3 class="text-xl font-semibold mb-4 text-green-700 border-b pb-2 border-green-300">
+                        <i class="fas fa-check-circle mr-2"></i>En Stock
+                    </h3>
                     <div class="space-y-4 min-h-[100px]" data-column-id="inStock">
                         </div>
                 </div>
 
-                <div id="column-outOfStock" class="kanban-column bg-gray-50 p-4 rounded-lg shadow-md border border-gray-200">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-700 border-b pb-2 border-gray-300">Agotado</h3>
-                    <div class="space-y-4 min-h-[100px]" data-column-id="outOfStock">
+                <div id="column-runningLow" class="kanban-column bg-yellow-50 p-4 rounded-lg shadow-md border border-yellow-200">
+                    <h3 class="text-xl font-semibold mb-4 text-yellow-700 border-b pb-2 border-yellow-300">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Por agotarse
+                    </h3>
+                    <div class="space-y-4 min-h-[100px]" data-column-id="runningLow">
+                        </div>
+                </div>
+
+                <div id="column-outOfStockToBuy" class="kanban-column bg-red-50 p-4 rounded-lg shadow-md border border-red-200">
+                    <h3 class="text-xl font-semibold mb-4 text-red-700 border-b pb-2 border-red-300">
+                        <i class="fas fa-shopping-cart mr-2"></i>Sin Stock (a comprar)
+                    </h3>
+                    <div class="space-y-4 min-h-[100px]" data-column-id="outOfStockToBuy">
                         </div>
                 </div>
             </section>
         </main>
 
+        <footer class="bg-gray-200 text-gray-600 p-3 text-center text-sm rounded-t-lg mt-auto">
+            <p id="lastUpdatedMessage">Actualizando información...</p>
+        </footer>
+
         <div id="editModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
-            <div class="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-1/3">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-1/3 max-h-[90vh] overflow-y-auto">
                 <h3 class="text-xl font-semibold mb-4 text-gray-700">Editar Artículo</h3>
                 <label for="editItemName" class="block text-sm font-medium text-gray-600 mb-1">Nombre</label>
                 <input type="text" id="editItemName" class="w-full p-3 border border-gray-300 rounded-md mb-4">
-                <label for="editItemQuantity" class="block text-sm font-medium text-gray-600 mb-1">Cantidad</label>
-                <input type="number" id="editItemQuantity" class="w-full p-3 border border-gray-300 rounded-md mb-4" min="1">
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="editItemQuantity" class="block text-sm font-medium text-gray-600 mb-1">Cantidad</label>
+                        <input type="number" id="editItemQuantity" class="w-full p-3 border border-gray-300 rounded-md" min="0" step="any">
+                    </div>
+                    <div>
+                        <label for="editItemUnit" class="block text-sm font-medium text-gray-600 mb-1">Unidad</label>
+                        <select id="editItemUnit" class="w-full p-3 border border-gray-300 rounded-md appearance-none">
+                            <option value="Uds.">Uds.</option>
+                            <option value="kg">kg</option>
+                            <option value="g">g</option>
+                            <option value="L">L</option>
+                            <option value="ml">ml</option>
+                            <option value="Paquetes">Paquetes</option>
+                            <option value="Latas">Latas</option>
+                            <option value="Botellas">Botellas</option>
+                            <option value="Rollos">Rollos</option>
+                            <option value="Cajas">Cajas</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="flex justify-end space-x-3">
                     <button id="cancelEditBtn" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 transition duration-200">Cancelar</button>
                     <button id="saveEditBtn" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">Guardar Cambios</button>
@@ -132,11 +192,23 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables for Firebase configuration and app ID
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // Firebase configuration and app ID (Provided by Canvas environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-inventory-app'; // Fallback app ID
+        const rawFirebaseConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = JSON.parse(rawFirebaseConfig);
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.warn("Firebase config is empty. Using placeholder. App might not work correctly.");
+                // Provide a placeholder if config is empty, though this won't connect to a real Firebase project
+                firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
+            }
+        } catch (e) {
+            console.error("Error parsing Firebase config:", e);
+            firebaseConfig = { apiKey: "AIzaSyD_ERROR_CONFIG", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
+        }
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app;
@@ -145,18 +217,22 @@
         let currentUserId = null;
         let isAuthReady = false;
 
-        // Get DOM elements
+        // DOM Elements
         const itemNameInput = document.getElementById('itemName');
         const itemQuantityInput = document.getElementById('itemQuantity');
+        const itemUnitInput = document.getElementById('itemUnit');
+        const itemColumnInput = document.getElementById('itemColumn');
         const addItemBtn = document.getElementById('addItemBtn');
         const addError = document.getElementById('addError');
         const userIdDisplay = document.getElementById('userIdDisplay');
         const loadingIndicator = document.getElementById('loadingIndicator');
+        const lastUpdatedMessage = document.getElementById('lastUpdatedMessage');
 
         // Modals elements
         const editModal = document.getElementById('editModal');
         const editItemNameInput = document.getElementById('editItemName');
         const editItemQuantityInput = document.getElementById('editItemQuantity');
+        const editItemUnitInput = document.getElementById('editItemUnit');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         const saveEditBtn = document.getElementById('saveEditBtn');
 
@@ -166,38 +242,48 @@
 
         let currentEditingItem = null; // To store the item being edited/deleted
 
-        // Initialize Firebase
+        // --- Firebase Initialization and Authentication ---
         function initializeFirebase() {
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
+                // For debugging Firestore issues if any
+                // import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+                // setLogLevel('debug');
 
-                // Authenticate user
+
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         currentUserId = user.uid;
                         userIdDisplay.textContent = currentUserId;
                     } else {
-                        // Sign in anonymously if no custom token or if user signs out
                         try {
                             if (initialAuthToken) {
                                 await signInWithCustomToken(auth, initialAuthToken);
                             } else {
                                 await signInAnonymously(auth);
                             }
-                            currentUserId = auth.currentUser?.uid || crypto.randomUUID();
-                            userIdDisplay.textContent = currentUserId;
+                            // This block will be re-entered after sign-in, setting currentUserId
                         } catch (error) {
                             console.error("Error signing in:", error);
                             userIdDisplay.textContent = "Error de autenticación";
-                            currentUserId = crypto.randomUUID(); // Fallback to a random ID
+                            currentUserId = `anon-${crypto.randomUUID()}`; // Fallback anonymous ID
+                            userIdDisplay.textContent = currentUserId + " (Anónimo Fallback)";
                         }
                     }
+                    
+                    if (auth.currentUser && !currentUserId) { // Ensure currentUserId is set if auth.currentUser exists
+                        currentUserId = auth.currentUser.uid;
+                        userIdDisplay.textContent = currentUserId;
+                    }
+
                     isAuthReady = true;
                     hideLoading();
                     if (currentUserId) {
-                        setupRealtimeListener();
+                        setupRealtimeListeners();
+                    } else {
+                        console.warn("User ID not available after auth state change. Realtime listeners not set up.");
                     }
                 });
             } catch (error) {
@@ -207,71 +293,96 @@
             }
         }
 
-        // Show/hide loading indicator
-        function showLoading() {
-            loadingIndicator.classList.remove('hidden');
+        // --- Loading Indicator ---
+        function showLoading() { loadingIndicator.classList.remove('hidden'); }
+        function hideLoading() { loadingIndicator.classList.add('hidden'); }
+
+        // --- Update Last Modified Info ---
+        async function updateLastModified() {
+            if (!isAuthReady || !currentUserId || !db) return;
+            try {
+                const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
+                await setDoc(metadataDocRef, {
+                    lastUpdatedAt: serverTimestamp(),
+                    lastUpdatedBy: currentUserId
+                }, { merge: true });
+            } catch (error) {
+                console.error("Error updating last modified timestamp:", error);
+            }
         }
 
-        function hideLoading() {
-            loadingIndicator.classList.add('hidden');
-        }
-
-        // Function to create a Kanban item card
+        // --- Item Card Creation ---
         function createItemCard(item) {
             const card = document.createElement('div');
             card.id = `item-${item.id}`;
             card.draggable = true;
-            card.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-sm', 'border', 'border-gray-200', 'flex', 'flex-col', 'gap-2', 'cursor-grab');
+            card.classList.add('bg-white', 'p-3', 'rounded-lg', 'shadow', 'border', 'border-gray-200', 'flex', 'flex-col', 'gap-2', 'cursor-grab', 'hover:shadow-md', 'transition-shadow');
             card.setAttribute('data-item-id', item.id);
             card.setAttribute('data-column-id', item.column);
 
+            // Determine card border color based on column
+            let borderColorClass = 'border-gray-200';
+            if (item.column === 'inStock') borderColorClass = 'border-green-300';
+            else if (item.column === 'runningLow') borderColorClass = 'border-yellow-300';
+            else if (item.column === 'outOfStockToBuy') borderColorClass = 'border-red-300';
+            card.classList.replace('border-gray-200', borderColorClass);
+
+
             card.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <span class="font-medium text-lg text-gray-800">${item.name}</span>
-                    <div class="flex space-x-2">
-                        <button class="edit-btn text-blue-500 hover:text-blue-700 transition duration-150" title="Editar">
-                            <i class="fas fa-edit"></i>
+                <div class="flex justify-between items-start">
+                    <span class="font-semibold text-md text-gray-800 break-all">${item.name}</span>
+                    <div class="flex space-x-2 flex-shrink-0 ml-2">
+                        <button class="edit-btn text-blue-500 hover:text-blue-700 transition duration-150 p-1" title="Editar">
+                            <i class="fas fa-edit fa-sm"></i>
                         </button>
-                        <button class="delete-btn text-red-500 hover:text-red-700 transition duration-150" title="Eliminar">
-                            <i class="fas fa-trash-alt"></i>
+                        <button class="delete-btn text-red-500 hover:text-red-700 transition duration-150 p-1" title="Eliminar">
+                            <i class="fas fa-trash-alt fa-sm"></i>
                         </button>
                     </div>
                 </div>
-                <p class="text-gray-600 text-sm">Cantidad: <span class="font-semibold">${item.quantity}</span></p>
+                <p class="text-gray-600 text-xs">Cantidad: <span class="font-medium">${item.quantity} ${item.unit || ''}</span></p>
             `;
 
-            // Add event listeners for drag and drop
             card.addEventListener('dragstart', handleDragStart);
             card.addEventListener('dragend', handleDragEnd);
 
-            // Add event listeners for edit and delete buttons
-            card.querySelector('.edit-btn').addEventListener('click', () => openEditModal(item));
-            card.querySelector('.delete-btn').addEventListener('click', () => openDeleteConfirmModal(item));
-
+            card.querySelector('.edit-btn').addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent card drag
+                openEditModal(item);
+            });
+            card.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent card drag
+                openDeleteConfirmModal(item);
+            });
             return card;
         }
 
-        // Render items to their respective columns
+        // --- Render Items ---
         function renderItems(items) {
-            // Clear existing items from all columns
-            document.querySelectorAll('.kanban-column > div').forEach(col => col.innerHTML = '');
-
+            document.querySelectorAll('.kanban-column > div[data-column-id]').forEach(colContainer => colContainer.innerHTML = '');
             items.forEach(item => {
-                const columnElement = document.querySelector(`[data-column-id="${item.column}"]`);
+                const columnElement = document.querySelector(`.kanban-column > div[data-column-id="${item.column}"]`);
                 if (columnElement) {
                     columnElement.appendChild(createItemCard(item));
+                } else {
+                    console.warn(`Column ${item.column} not found for item ${item.name}`);
+                     // If item has an old/invalid column, try to put it in 'outOfStockToBuy'
+                    const fallbackColumn = document.querySelector(`.kanban-column > div[data-column-id="outOfStockToBuy"]`);
+                    if (fallbackColumn) {
+                        fallbackColumn.appendChild(createItemCard(item));
+                    }
                 }
             });
         }
 
-        // Firestore Real-time Listener
-        function setupRealtimeListener() {
-            if (!isAuthReady || !currentUserId) {
-                console.log("Authentication not ready or userId not available for listener setup.");
+        // --- Real-time Listeners ---
+        function setupRealtimeListeners() {
+            if (!isAuthReady || !currentUserId || !db) {
+                console.log("Auth not ready or DB not available for listener setup.");
                 return;
             }
 
-            // Changed collection path to a public one
+            // Listener for inventory items
             const itemsCollectionRef = collection(db, `artifacts/${appId}/public/data/inventoryItems`);
             onSnapshot(itemsCollectionRef, (snapshot) => {
                 const items = [];
@@ -280,47 +391,83 @@
                 });
                 renderItems(items);
             }, (error) => {
-                console.error("Error fetching real-time updates:", error);
+                console.error("Error fetching real-time item updates:", error);
+                lastUpdatedMessage.textContent = "Error al cargar datos.";
+            });
+
+            // Listener for last update metadata
+            const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
+            onSnapshot(metadataDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.lastUpdatedAt && data.lastUpdatedAt.toDate) { // Check if it's a Firestore Timestamp
+                        const date = data.lastUpdatedAt.toDate();
+                        const updatedBy = data.lastUpdatedBy ? `por ${data.lastUpdatedBy.substring(0,8)}...` : 'por alguien';
+                        lastUpdatedMessage.textContent = `Datos actualizados ${updatedBy} el ${date.toLocaleDateString()} a las ${date.toLocaleTimeString()}.`;
+                    } else {
+                         lastUpdatedMessage.textContent = "Información de última actualización no disponible.";
+                    }
+                } else {
+                    lastUpdatedMessage.textContent = "Aún no hay actualizaciones registradas.";
+                }
+            }, (error) => {
+                console.error("Error fetching metadata updates:", error);
+                lastUpdatedMessage.textContent = "Error al cargar info de actualización.";
             });
         }
 
-        // Add New Item
+        // --- Add New Item ---
         addItemBtn.addEventListener('click', async () => {
             const name = itemNameInput.value.trim();
-            const quantity = parseInt(itemQuantityInput.value, 10);
+            const quantity = parseFloat(itemQuantityInput.value);
+            const unit = itemUnitInput.value;
+            const column = itemColumnInput.value; // Get selected column
 
             if (!name) {
+                addError.textContent = "El nombre del artículo no puede estar vacío.";
+                addError.classList.remove('hidden');
+                return;
+            }
+            if (isNaN(quantity) || quantity < 0) {
+                addError.textContent = "La cantidad debe ser un número válido y no negativo.";
                 addError.classList.remove('hidden');
                 return;
             }
             addError.classList.add('hidden');
 
-            if (!isAuthReady || !currentUserId) {
-                console.error("Authentication not ready. Cannot add item.");
+            if (!isAuthReady || !currentUserId || !db) {
+                console.error("Auth/DB not ready. Cannot add item.");
+                addError.textContent = "Error de conexión. Intenta de nuevo.";
+                addError.classList.remove('hidden');
                 return;
             }
 
             try {
                 showLoading();
-                // Changed collection path to a public one
                 const itemsCollectionRef = collection(db, `artifacts/${appId}/public/data/inventoryItems`);
                 await addDoc(itemsCollectionRef, {
                     name: name,
                     quantity: quantity,
-                    column: 'pending', // Default column for new items
-                    // userId: currentUserId, // Removed userId from item data as it's now public
-                    createdAt: new Date()
+                    unit: unit,
+                    column: column, // Use selected column
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUserId
                 });
+                await updateLastModified(); // Update metadata
                 itemNameInput.value = '';
                 itemQuantityInput.value = '1';
+                itemUnitInput.value = 'Uds.';
+                itemColumnInput.value = 'outOfStockToBuy'; // Reset to default
                 hideLoading();
             } catch (e) {
                 console.error("Error adding document: ", e);
+                addError.textContent = "Error al añadir el artículo. Revisa la consola.";
+                addError.classList.remove('hidden');
                 hideLoading();
             }
         });
 
-        // Drag and Drop functionality
+        // --- Drag and Drop Functionality ---
         let draggedItem = null;
 
         function handleDragStart(e) {
@@ -328,59 +475,71 @@
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', draggedItem.id);
             setTimeout(() => {
-                draggedItem.classList.add('dragging');
+                if (draggedItem) draggedItem.classList.add('dragging');
             }, 0);
         }
 
-        function handleDragEnd(e) {
-            draggedItem.classList.remove('dragging');
+        function handleDragEnd() {
+            if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+            }
             draggedItem = null;
+            // Remove drag-over from all columns
+            document.querySelectorAll('.kanban-column > div[data-column-id]').forEach(col => col.classList.remove('drag-over'));
         }
 
-        document.querySelectorAll('.kanban-column > div').forEach(column => {
-            column.addEventListener('dragover', e => {
-                e.preventDefault(); // Allow drop
-                column.classList.add('drag-over');
-            });
-
-            column.addEventListener('dragleave', () => {
-                column.classList.remove('drag-over');
-            });
-
-            column.addEventListener('drop', async e => {
+        document.querySelectorAll('.kanban-column > div[data-column-id]').forEach(columnContainer => {
+            columnContainer.addEventListener('dragover', e => {
                 e.preventDefault();
-                column.classList.remove('drag-over');
+                if (columnContainer !== draggedItem?.parentNode) { // Don't highlight if over original column's items
+                    columnContainer.classList.add('drag-over');
+                }
+            });
+            columnContainer.addEventListener('dragleave', e => {
+                 // Check if the mouse is leaving to an element not within the column container
+                if (!columnContainer.contains(e.relatedTarget)) {
+                    columnContainer.classList.remove('drag-over');
+                }
+            });
+            columnContainer.addEventListener('drop', async e => {
+                e.preventDefault();
+                columnContainer.classList.remove('drag-over');
 
-                if (draggedItem) {
-                    const newColumnId = column.getAttribute('data-column-id');
+                if (draggedItem && draggedItem.parentNode !== columnContainer) {
+                    const newColumnId = columnContainer.getAttribute('data-column-id');
                     const itemId = draggedItem.getAttribute('data-item-id');
 
-                    if (!isAuthReady || !currentUserId) {
-                        console.error("Authentication not ready. Cannot move item.");
+                    if (!isAuthReady || !currentUserId || !db) {
+                        console.error("Auth/DB not ready. Cannot move item.");
                         return;
                     }
 
                     try {
                         showLoading();
-                        // Changed collection path to a public one
                         const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, itemId);
                         await updateDoc(itemDocRef, {
-                            column: newColumnId
+                            column: newColumnId,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUserId
                         });
+                        await updateLastModified(); // Update metadata
+                        // The onSnapshot listener will handle re-rendering
                         hideLoading();
                     } catch (error) {
                         console.error("Error updating item column:", error);
                         hideLoading();
                     }
                 }
+                draggedItem = null; // Clear dragged item after drop
             });
         });
 
-        // Modal functions
+        // --- Modal Functions ---
         function openEditModal(item) {
             currentEditingItem = item;
             editItemNameInput.value = item.name;
             editItemQuantityInput.value = item.quantity;
+            editItemUnitInput.value = item.unit || 'Uds.'; // Default to Uds if unit is not set
             editModal.classList.remove('hidden');
         }
 
@@ -392,37 +551,45 @@
         saveEditBtn.addEventListener('click', async () => {
             if (currentEditingItem) {
                 const newName = editItemNameInput.value.trim();
-                const newQuantity = parseInt(editItemQuantityInput.value, 10);
+                const newQuantity = parseFloat(editItemQuantityInput.value);
+                const newUnit = editItemUnitInput.value;
 
-                if (!newName || newQuantity < 1) {
-                    // Basic validation
-                    // Replaced alert with console.log as alerts are not allowed
-                    console.log("El nombre y la cantidad son obligatorios y la cantidad debe ser al menos 1.");
+                if (!newName) {
+                    console.log("El nombre no puede estar vacío."); // Replaced alert
+                    // You might want to show this error in the modal UI
+                    return;
+                }
+                 if (isNaN(newQuantity) || newQuantity < 0) {
+                    console.log("La cantidad debe ser un número válido y no negativo."); // Replaced alert
                     return;
                 }
 
-                if (!isAuthReady || !currentUserId) {
-                    console.error("Authentication not ready. Cannot save changes.");
+
+                if (!isAuthReady || !currentUserId || !db) {
+                    console.error("Auth/DB not ready. Cannot save changes.");
                     return;
                 }
 
                 try {
                     showLoading();
-                    // Changed collection path to a public one
                     const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, currentEditingItem.id);
                     await updateDoc(itemDocRef, {
                         name: newName,
-                        quantity: newQuantity
+                        quantity: newQuantity,
+                        unit: newUnit,
+                        updatedAt: serverTimestamp(),
+                        updatedBy: currentUserId
                     });
+                    await updateLastModified(); // Update metadata
                     closeEditModal();
                     hideLoading();
                 } catch (error) {
                     console.error("Error updating item:", error);
+                    // Show error in modal UI if possible
                     hideLoading();
                 }
             }
         });
-
         cancelEditBtn.addEventListener('click', closeEditModal);
 
         function openDeleteConfirmModal(item) {
@@ -437,16 +604,15 @@
 
         confirmDeleteBtn.addEventListener('click', async () => {
             if (currentEditingItem) {
-                if (!isAuthReady || !currentUserId) {
-                    console.error("Authentication not ready. Cannot delete item.");
+                if (!isAuthReady || !currentUserId || !db) {
+                    console.error("Auth/DB not ready. Cannot delete item.");
                     return;
                 }
-
                 try {
                     showLoading();
-                    // Changed collection path to a public one
                     const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, currentEditingItem.id);
                     await deleteDoc(itemDocRef);
+                    await updateLastModified(); // Update metadata
                     closeDeleteConfirmModal();
                     hideLoading();
                 } catch (error) {
@@ -455,13 +621,23 @@
                 }
             }
         });
-
         cancelDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
 
-        // Initial setup
+        // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => {
-            showLoading();
-            initializeFirebase();
+            showLoading(); // Show loading initially
+            if (Object.keys(firebaseConfig).length > 2) { // Basic check if config might be valid
+                 initializeFirebase();
+            } else {
+                console.error("Firebase configuration is missing or invalid. App will not connect to Firebase.");
+                userIdDisplay.textContent = "Configuración Inválida";
+                lastUpdatedMessage.textContent = "Error de configuración de Firebase.";
+                hideLoading();
+                 // Optionally, you could disable parts of the UI that depend on Firebase here.
+                addItemBtn.disabled = true;
+                addItemBtn.title = "Firebase no configurado";
+                addItemBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
         });
     </script>
 </body>
