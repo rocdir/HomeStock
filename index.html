@@ -53,7 +53,7 @@
             <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center">
                 <h1 class="text-3xl font-bold mb-2 sm:mb-0">Gestor de Inventario del Hogar</h1>
                 <div class="text-sm">
-                    Tu ID de Usuario: <span id="userIdDisplay" class="font-semibold">Cargando...</span>
+                    <!-- User ID Display Removed -->
                 </div>
             </div>
         </header>
@@ -190,35 +190,14 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase configuration and app ID (Provided by Canvas environment)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-inventory-app'; 
-        const rawFirebaseConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-        let firebaseConfig = {};
-        
-        try {
-            firebaseConfig = JSON.parse(rawFirebaseConfig);
-            if (Object.keys(firebaseConfig).length === 0 && rawFirebaseConfig === '{}') {
-                console.warn("Firebase config is an empty object string ('{}'). Using placeholder. App might not work correctly.");
-                firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG_EMPTY_OBJ", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
-            } else if (Object.keys(firebaseConfig).length === 0) { 
-                 console.warn("Firebase config was effectively empty (e.g., from undefined __firebase_config). Using placeholder.");
-                 firebaseConfig = { apiKey: "AIzaSyD_DEMO_CONFIG_UNDEFINED", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
-            }
-        } catch (e) { 
-            console.error("Error parsing Firebase config JSON:", e, "Raw config was:", rawFirebaseConfig);
-            firebaseConfig = { apiKey: "AIzaSyD_ERROR_CONFIG_PARSE", authDomain: "project-id.firebaseapp.com", projectId: "project-id" };
-        }
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app;
-        let db;
-        let auth;
-        let currentUserId = null;
-        let isAuthReady = false;
+        // JSONBin.io Constants and Global State
+        const JSONBIN_API_KEY = "$2a$10$Ij740FOBuAEn6dTZ7sNl9uWbnx/GdYuOi5ZNSZ9ak3RCDgb69rWfe";
+        const JSONBIN_BIN_ID = "683b1caa8561e97a501de569";
+        const JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b";
+        let localGroceryItems = [];
+        let isSaving = false;
+        let pollingIntervalId = null;
+        const POLLING_INTERVAL = 15000; // 15 seconds
 
         // DOM Elements
         const itemNameInput = document.getElementById('itemName');
@@ -227,7 +206,7 @@
         const itemColumnInput = document.getElementById('itemColumn');
         const addItemBtn = document.getElementById('addItemBtn');
         const addError = document.getElementById('addError');
-        const userIdDisplay = document.getElementById('userIdDisplay');
+        // const userIdDisplay = document.getElementById('userIdDisplay'); // Removed
         const loadingIndicator = document.getElementById('loadingIndicator');
         const lastUpdatedMessage = document.getElementById('lastUpdatedMessage');
 
@@ -243,121 +222,97 @@
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
-        let currentEditingItem = null; 
+        let currentEditingItem = null;
 
         // --- Utility Functions ---
-        function generateFallbackId(prefix = "id") {
-            return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        }
-
-        function getUserIdFallback(prefix = "anon") {
-            try {
-                return typeof crypto !== 'undefined' && crypto.randomUUID ? `${prefix}-${crypto.randomUUID()}` : generateFallbackId(prefix);
-            } catch (e) {
-                console.warn("crypto.randomUUID not available, using simpler fallback for ID generation.");
-                return generateFallbackId(prefix);
-            }
-        }
-
-
-        // --- Firebase Initialization and Authentication ---
-        function initializeFirebase() {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                onAuthStateChanged(auth, async (user) => {
-                    try {
-                        if (user) {
-                            currentUserId = user.uid;
-                            userIdDisplay.textContent = currentUserId;
-                        } else {
-                            try {
-                                if (initialAuthToken) {
-                                    console.log("Attempting sign in with custom token...");
-                                    await signInWithCustomToken(auth, initialAuthToken);
-                                    // onAuthStateChanged will be called again with the user
-                                } else {
-                                    console.log("Attempting anonymous sign in...");
-                                    await signInAnonymously(auth);
-                                    // onAuthStateChanged will be called again with the user
-                                }
-                            } catch (signInError) {
-                                console.error("Error during sign-in attempt:", signInError);
-                                userIdDisplay.textContent = "Error de autenticación";
-                                currentUserId = getUserIdFallback("auth-error");
-                                userIdDisplay.textContent = `${currentUserId} (Error de inicio sesión)`;
-                            }
-                        }
-                        
-                        // Ensure currentUserId is set if auth.currentUser exists, even after a failed specific sign-in
-                        if (!currentUserId && auth.currentUser) {
-                            currentUserId = auth.currentUser.uid;
-                            userIdDisplay.textContent = currentUserId + " (Recuperado)";
-                        }
-                        
-                        // If still no user ID after all attempts
-                        if (!currentUserId) {
-                            console.warn("No user ID could be established after auth attempts. Using a final fallback ID.");
-                            currentUserId = getUserIdFallback("final-fallback");
-                            userIdDisplay.textContent = `${currentUserId} (Fallback final)`;
-                        }
-
-                    } catch (errorInCallback) {
-                        console.error("Critical error within onAuthStateChanged callback logic:", errorInCallback);
-                        userIdDisplay.textContent = "Error crítico de autenticación";
-                        if (!currentUserId) {
-                           currentUserId = getUserIdFallback("critical-error");
-                           userIdDisplay.textContent = `${currentUserId} (Error crítico)`;
-                        }
-                    } finally {
-                        isAuthReady = true;
-                        hideLoading(); 
-                        if (currentUserId) {
-                            console.log("User authenticated/identified:", currentUserId, "Setting up listeners.");
-                            setupRealtimeListeners();
-                        } else {
-                            // This case should ideally be covered by fallbacks above
-                            console.error("CRITICAL: User ID is STILL null after auth state change and fallbacks. Listeners not set up.");
-                            lastUpdatedMessage.textContent = "Error: No se pudo identificar al usuario.";
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error("Error initializing Firebase (outer catch):", error);
-                userIdDisplay.textContent = "Error de inicialización de Firebase";
-                lastUpdatedMessage.textContent = "No se pudo conectar a la base de datos.";
-                hideLoading(); // Ensure loading is hidden if init itself fails
-            }
-        }
+        // function generateFallbackId(prefix = "id") { // Potentially re-use for item IDs if needed
+        //     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        // }
+        // Removed Firebase-specific utility functions
 
         // --- Loading Indicator ---
-        function showLoading() { 
-            if(loadingIndicator) loadingIndicator.classList.remove('hidden'); 
+        function showLoading() {
+            if(loadingIndicator) loadingIndicator.classList.remove('hidden');
             else console.error("loadingIndicator element not found");
         }
-        function hideLoading() { 
-            if(loadingIndicator) loadingIndicator.classList.add('hidden'); 
+        function hideLoading() {
+            if(loadingIndicator) loadingIndicator.classList.add('hidden');
             else console.error("loadingIndicator element not found during hide");
         }
 
-        // --- Update Last Modified Info ---
-        async function updateLastModified() {
-            if (!isAuthReady || !currentUserId || !db) {
-                console.warn("Cannot update last modified: Auth not ready, no user ID, or DB not available.");
-                return;
-            }
+        // --- JSONBin.io Core Data Functions ---
+        async function loadGroceries() {
+            showLoading();
+            lastUpdatedMessage.textContent = "Cargando lista...";
             try {
-                const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
-                await setDoc(metadataDocRef, {
-                    lastUpdatedAt: serverTimestamp(),
-                    lastUpdatedBy: currentUserId
-                }, { merge: true });
+                const response = await fetch(`${JSONBIN_BASE_URL}/${JSONBIN_BIN_ID}/latest`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': JSONBIN_API_KEY
+                    }
+                });
+                if (response.ok) {
+                    const recordWrapper = await response.json();
+                    // Data is nested under 'record'. If bin is new/empty, recordWrapper.record might be just an empty object or not have 'items'.
+                    if (recordWrapper && recordWrapper.record && Array.isArray(recordWrapper.record.items)) {
+                        localGroceryItems = recordWrapper.record.items;
+                    } else if (recordWrapper && recordWrapper.record && Object.keys(recordWrapper.record).length === 0) {
+                        // Bin exists but is empty (e.g. {}). Initialize as empty list.
+                        localGroceryItems = [];
+                         console.log("Bin is empty, initializing with an empty list.");
+                    }
+                    else {
+                        // Bin might not be structured with an 'items' array yet, or other unexpected structure.
+                        localGroceryItems = [];
+                        console.warn("Loaded data is not in the expected format (no 'items' array in record), initializing with empty list. Data:", recordWrapper);
+                    }
+                    renderItems(localGroceryItems);
+                    lastUpdatedMessage.textContent = "Lista cargada correctamente.";
+                } else {
+                    const errorData = await response.text();
+                    console.error("Error loading list from JSONBin.io:", response.status, errorData);
+                    lastUpdatedMessage.textContent = `Error cargando lista: ${response.status}. Puede que el BIN ID sea incorrecto o no exista.`;
+                     // Optional: Clear local items if load fails, or keep stale data.
+                    // localGroceryItems = []; renderItems(localGroceryItems);
+                }
             } catch (error) {
-                console.error("Error updating last modified timestamp:", error);
+                console.error("Network or other error loading groceries:", error);
+                lastUpdatedMessage.textContent = "Error de red al cargar la lista.";
+            } finally {
+                hideLoading();
             }
         }
+
+        async function saveGroceries() {
+            if (isSaving) return;
+            isSaving = true;
+            // showLoading(); // Optional: use a different indicator for saving or rely on lastUpdatedMessage
+            lastUpdatedMessage.textContent = "Guardando lista...";
+            try {
+                const response = await fetch(`${JSONBIN_BASE_URL}/${JSONBIN_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_API_KEY
+                    },
+                    body: JSON.stringify({ items: localGroceryItems }) // Store items under an "items" key
+                });
+                if (response.ok) {
+                    lastUpdatedMessage.textContent = `Lista guardada a las ${new Date().toLocaleTimeString()}.`;
+                } else {
+                    const errorData = await response.text();
+                    console.error("Error saving list to JSONBin.io:", response.status, errorData);
+                    lastUpdatedMessage.textContent = `Error guardando lista: ${response.status}.`;
+                }
+            } catch (error) {
+                console.error("Network or other error saving groceries:", error);
+                lastUpdatedMessage.textContent = "Error de red al guardar la lista.";
+            } finally {
+                // hideLoading();
+                isSaving = false;
+            }
+        }
+        // Removed updateLastModified function, will be handled by saveGroceries if needed
 
         // --- Item Card Creation ---
         function createItemCard(item) {
@@ -411,10 +366,10 @@
                 if (columnElement) {
                     columnElement.appendChild(createItemCard(item));
                 } else {
-                    console.warn(`Column ${item.column} not found for item ${item.name}. Moving to 'Sin Stock (a comprar)'.`);
+                    console.warn(`Column ${item.column} not found for item ${item.name}. Defaulting to 'outOfStockToBuy'.`);
                     const fallbackColumn = document.querySelector(`.kanban-column > div[data-column-id="outOfStockToBuy"]`);
                     if (fallbackColumn) {
-                        const correctedItem = {...item, column: 'outOfStockToBuy'};
+                        const correctedItem = {...item, column: 'outOfStockToBuy'}; // Correct the item's column before rendering
                         fallbackColumn.appendChild(createItemCard(correctedItem));
                     } else {
                         console.error("Fallback column 'outOfStockToBuy' also not found. Cannot render item:", item.name);
@@ -423,54 +378,14 @@
             });
         }
 
-        // --- Real-time Listeners ---
-        function setupRealtimeListeners() {
-            if (!isAuthReady || !currentUserId || !db) {
-                console.error("Cannot setup listeners: Auth not ready, no user ID, or DB not available.", {isAuthReady, currentUserId, dbExists: !!db});
-                lastUpdatedMessage.textContent = "Error de conexión para actualizaciones en tiempo real.";
-                return;
-            }
-            console.log("Setting up Firestore listeners...");
-
-            const itemsCollectionRef = collection(db, `artifacts/${appId}/public/data/inventoryItems`);
-            onSnapshot(itemsCollectionRef, (snapshot) => {
-                console.log(`Received ${snapshot.docs.length} items from Firestore.`);
-                const items = [];
-                snapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() });
-                });
-                renderItems(items);
-            }, (error) => {
-                console.error("Error fetching real-time item updates:", error);
-                lastUpdatedMessage.textContent = "Error al cargar datos de inventario.";
-            });
-
-            const metadataDocRef = doc(db, `artifacts/${appId}/public/data/inventoryMetadata`, 'status');
-            onSnapshot(metadataDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.lastUpdatedAt && data.lastUpdatedAt.toDate) { 
-                        const date = data.lastUpdatedAt.toDate();
-                        const updatedBy = data.lastUpdatedBy ? `por ${data.lastUpdatedBy.substring(0,8)}...` : 'por alguien';
-                        lastUpdatedMessage.textContent = `Datos actualizados ${updatedBy} el ${date.toLocaleDateString()} a las ${date.toLocaleTimeString()}.`;
-                    } else {
-                         lastUpdatedMessage.textContent = "Información de última actualización no disponible.";
-                    }
-                } else {
-                    lastUpdatedMessage.textContent = "Aún no hay actualizaciones registradas.";
-                }
-            }, (error) => {
-                console.error("Error fetching metadata updates:", error);
-                lastUpdatedMessage.textContent = "Error al cargar info de actualización.";
-            });
-        }
+        // Removed setupRealtimeListeners (Firebase specific)
 
         // --- Add New Item ---
         addItemBtn.addEventListener('click', async () => {
             const name = itemNameInput.value.trim();
             const quantity = parseFloat(itemQuantityInput.value);
             const unit = itemUnitInput.value;
-            const column = itemColumnInput.value; 
+            const column = itemColumnInput.value;
 
             if (!name) {
                 addError.textContent = "El nombre del artículo no puede estar vacío.";
@@ -484,36 +399,26 @@
             }
             addError.classList.add('hidden');
 
-            if (!isAuthReady || !currentUserId || !db) {
-                console.error("Auth/DB not ready. Cannot add item.");
-                addError.textContent = "Error de conexión. Intenta de nuevo.";
-                addError.classList.remove('hidden');
-                return;
-            }
+            // JSONBin.io: No auth check needed here, handled by API key
+            // Removed Firebase specific checks and serverTimestamp
 
-            try {
-                showLoading();
-                const itemsCollectionRef = collection(db, `artifacts/${appId}/public/data/inventoryItems`);
-                await addDoc(itemsCollectionRef, {
-                    name: name,
-                    quantity: quantity,
-                    unit: unit,
-                    column: column, 
-                    createdAt: serverTimestamp(),
-                    createdBy: currentUserId
-                });
-                await updateLastModified(); 
-                itemNameInput.value = '';
-                itemQuantityInput.value = '1';
-                itemUnitInput.value = 'Uds.';
-                itemColumnInput.value = 'outOfStockToBuy'; 
-                hideLoading();
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                addError.textContent = "Error al añadir el artículo. Revisa la consola.";
-                addError.classList.remove('hidden');
-                hideLoading();
-            }
+            const newItem = {
+                id: 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9), // Client-side ID
+                name: name,
+                quantity: quantity,
+                unit: unit,
+                column: column,
+                // createdAt: new Date().toISOString() // Optional: client-side timestamp
+            };
+
+            localGroceryItems.push(newItem);
+            renderItems(localGroceryItems);
+            await saveGroceries(); // Save to JSONBin.io
+
+            itemNameInput.value = '';
+            itemQuantityInput.value = '1';
+            itemUnitInput.value = 'Uds.';
+            itemColumnInput.value = 'outOfStockToBuy';
         });
 
         // --- Drag and Drop Functionality ---
@@ -556,27 +461,18 @@
                     const newColumnId = columnContainer.getAttribute('data-column-id');
                     const itemId = draggedItem.getAttribute('data-item-id');
 
-                    if (!isAuthReady || !currentUserId || !db) {
-                        console.error("Auth/DB not ready. Cannot move item.");
-                        return;
-                    }
-
-                    try {
-                        showLoading();
-                        const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, itemId);
-                        await updateDoc(itemDocRef, {
-                            column: newColumnId,
-                            updatedAt: serverTimestamp(),
-                            updatedBy: currentUserId
-                        });
-                        await updateLastModified(); 
-                        hideLoading();
-                    } catch (error) {
-                        console.error("Error updating item column:", error);
-                        hideLoading();
+                    // JSONBin.io: Update local array and save
+                    const itemIndex = localGroceryItems.findIndex(item => item.id === itemId);
+                    if (itemIndex > -1) {
+                        localGroceryItems[itemIndex].column = newColumnId;
+                        // localGroceryItems[itemIndex].updatedAt = new Date().toISOString(); // Optional
+                        renderItems(localGroceryItems); // Re-render immediately for responsiveness
+                        await saveGroceries();
+                    } else {
+                        console.error("Dropped item not found in localGroceryItems:", itemId);
                     }
                 }
-                draggedItem = null; 
+                draggedItem = null;
             });
         });
 
@@ -610,27 +506,19 @@
                     return;
                 }
 
-                if (!isAuthReady || !currentUserId || !db) {
-                    console.error("Auth/DB not ready. Cannot save changes.");
-                    return;
-                }
-
-                try {
-                    showLoading();
-                    const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, currentEditingItem.id);
-                    await updateDoc(itemDocRef, {
-                        name: newName,
-                        quantity: newQuantity,
-                        unit: newUnit,
-                        updatedAt: serverTimestamp(),
-                        updatedBy: currentUserId
-                    });
-                    await updateLastModified(); 
+                // JSONBin.io: Update local array and save
+                const itemIndex = localGroceryItems.findIndex(item => item.id === currentEditingItem.id);
+                if (itemIndex > -1) {
+                    localGroceryItems[itemIndex].name = newName;
+                    localGroceryItems[itemIndex].quantity = newQuantity;
+                    localGroceryItems[itemIndex].unit = newUnit;
+                    // localGroceryItems[itemIndex].updatedAt = new Date().toISOString(); // Optional
+                    renderItems(localGroceryItems);
+                    await saveGroceries();
                     closeEditModal();
-                    hideLoading();
-                } catch (error) {
-                    console.error("Error updating item:", error);
-                    hideLoading();
+                } else {
+                     console.error("Item to edit not found in localGroceryItems:", currentEditingItem.id);
+                     // Optionally show error to user
                 }
             }
         });
@@ -648,58 +536,23 @@
 
         confirmDeleteBtn.addEventListener('click', async () => {
             if (currentEditingItem) {
-                if (!isAuthReady || !currentUserId || !db) {
-                    console.error("Auth/DB not ready. Cannot delete item.");
-                    return;
-                }
-                try {
-                    showLoading();
-                    const itemDocRef = doc(db, `artifacts/${appId}/public/data/inventoryItems`, currentEditingItem.id);
-                    await deleteDoc(itemDocRef);
-                    await updateLastModified(); 
-                    closeDeleteConfirmModal();
-                    hideLoading();
-                } catch (error) {
-                    console.error("Error deleting item:", error);
-                    hideLoading();
-                }
+                // JSONBin.io: Update local array and save
+                localGroceryItems = localGroceryItems.filter(item => item.id !== currentEditingItem.id);
+                renderItems(localGroceryItems);
+                await saveGroceries();
+                closeDeleteConfirmModal();
             }
         });
         cancelDeleteBtn.addEventListener('click', closeDeleteConfirmModal);
 
         // --- Initial Setup ---
-        document.addEventListener('DOMContentLoaded', () => {
-            showLoading(); 
-            let proceedWithFirebase = true;
+        document.addEventListener('DOMContentLoaded', async () => { // Made async for initial load
+            showLoading(); // Show loading indicator at the very start
+            await loadGroceries(); // Load initial data
+            hideLoading(); // Hide loading indicator after initial load
 
-            // Stricter check for firebaseConfig validity
-            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                proceedWithFirebase = false;
-                console.error("Firebase configuration is empty or not an object.");
-            } else if (firebaseConfig.apiKey && (firebaseConfig.apiKey.includes("ERROR_CONFIG") || firebaseConfig.apiKey.includes("DEMO_CONFIG"))) {
-                proceedWithFirebase = false;
-                console.error("Firebase configuration is identified as a placeholder/error config:", firebaseConfig.apiKey);
-            } else if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
-                proceedWithFirebase = false; 
-                console.error("Essential Firebase configuration fields (apiKey, authDomain, projectId) are missing.");
-            }
-            
-            if (proceedWithFirebase) {
-                 console.log("Firebase config seems valid, initializing Firebase...");
-                 initializeFirebase();
-            } else {
-                console.error("Will not initialize Firebase due to invalid or placeholder configuration.");
-                userIdDisplay.textContent = "Configuración Inválida";
-                lastUpdatedMessage.textContent = "Error de configuración de Firebase. La app no funcionará.";
-                hideLoading();
-                if(addItemBtn) {
-                    addItemBtn.disabled = true;
-                    addItemBtn.title = "Firebase no configurado";
-                    addItemBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                } else {
-                    console.error("addItemBtn not found to disable.");
-                }
-            }
+            if (pollingIntervalId) clearInterval(pollingIntervalId); // Clear existing interval if any
+            pollingIntervalId = setInterval(loadGroceries, POLLING_INTERVAL); // Start polling
         });
     </script>
 </body>
